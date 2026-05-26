@@ -29,18 +29,17 @@
           
           mkdir -p "$PROM_DIR/data" "$PROM_DIR/logs"
 
-          # Генерируем конфигурацию prometheus.yml
           if [ ! -f "$PROM_DIR/prometheus.yml" ]; then
             echo "[Nix] Создание локальной конфигурации Prometheus..."
             cat <<EOF > "$PROM_DIR/prometheus.yml"
 global:
-  scrape_interval: 1s # Максимально частый сбор данных для быстрого наполнения блоков
+  scrape_interval: 1s
 
 scrape_configs:
   - job_name: 'pushgateway'
     honor_labels: true
     static_configs:
-      - targets: ['127.0.0.1:9091']
+      - targets: ['127.0.0.1:$PORT_GW']
 EOF
           fi
 
@@ -51,21 +50,27 @@ EOF
           echo "   run-bench  - Сгенерировать метрики и собрать блоки чанков"
           echo "--------------------------------------------------------"
 
-          # Запуск сервисов в фоновом режиме с флагом --web.enable-admin-api (нужен для снапшотов)
-          alias start-prom="
-            pushgateway > \$PROM_DIR/logs/pushgateway.log 2>&1 & echo \$! > \$PROM_DIR/pushgateway.pid
-            prometheus --config.file=\$PROM_DIR/prometheus.yml --storage.tsdb.path=\$PROM_DIR/data --web.enable-admin-api --web.listen-address=127.0.0.1:\$PORT_PROM > \$PROM_DIR/logs/prometheus.log 2>&1 & echo \$! > \$PROM_DIR/prometheus.pid
+          # Используем функции вместо алиасов для избежания ада с кавычками
+          start-prom() {
+            pushgateway --web.listen-address="127.0.0.1:$PORT_GW" > "$PROM_DIR/logs/pushgateway.log" 2>&1 & echo $! > "$PROM_DIR/pushgateway.pid"
+            
+            prometheus --config.file="$PROM_DIR/prometheus.yml" \
+                       --storage.tsdb.path="$PROM_DIR/data" \
+                       --web.enable-admin-api \
+                       --web.listen-address="127.0.0.1:$PORT_PROM" > "$PROM_DIR/logs/prometheus.log" 2>&1 & echo $! > "$PROM_DIR/prometheus.pid"
+            
             echo '[Nix] Сервисы запущены!'
-          "
+          }
           
-          alias stop-prom="
-            kill \$(cat \$PROM_DIR/prometheus.pid) && rm \$PROM_DIR/prometheus.pid
-            kill \$(cat \$PROM_DIR/pushgateway.pid) && rm \$PROM_DIR/pushgateway.pid
+          stop-prom() {
+            [ -f "$PROM_DIR/prometheus.pid" ] && kill $(cat "$PROM_DIR/prometheus.pid") && rm "$PROM_DIR/prometheus.pid"
+            [ -f "$PROM_DIR/pushgateway.pid" ] && kill $(cat "$PROM_DIR/pushgateway.pid") && rm "$PROM_DIR/pushgateway.pid"
             echo '[Nix] Сервисы остановлены.'
-          "
+          }
           
           alias run-bench="python collect_prom_blocks.py"
         '';
+
       };
     };
 }

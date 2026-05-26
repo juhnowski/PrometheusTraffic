@@ -26,17 +26,17 @@ def generate_and_push_metrics():
     # Имитируем отправку данных порциями
     for step in range(10):
         # 1. Заполняем дубликаты
-        for i in range(100):
+        for i in range(1000):
             status = 200 if i % 2 == 0 else 500
             g_dup.labels(host=f"srv-{i % 5}", service="nginx").set(status)
 
         # 2. Заполняем денормализованные лейблы
-        for i in range(100):
+        for i in range(1000):
             val = 22.5 + (i % 5) * 0.5
             g_iot.labels(floor="alpha-floor", device_id=f"sensor-{i}", firmware="v1.0.3").set(val)
 
         # 3. Заполняем бинарный шум
-        for i in range(50):
+        for i in range(1500):
             c_noise.labels(source="random_noise").inc(random.random() * 100)
 
         # Пушим текущий срез метрик в локальный Gateway
@@ -46,16 +46,26 @@ def generate_and_push_metrics():
 def trigger_prometheus_snapshot():
     """Вызывает Admin API Prometheus для немедленного создания snapshot-блока на диске."""
     print("    [2/2] Запрос к Prometheus Admin API на создание Snapshot...")
-    url = "http://127.0.0"
-    req = urllib.request.Request(url, method="POST")
+    
+    # Строго IPv4 и корректный эндпоинт
+    url = "http://127.0.0.1:9090/api/v1/admin/tsdb/snapshot"
+    
+    # Создаем пустой POST-запрос с необходимыми заголовками
+    req = urllib.request.Request(
+        url, 
+        data=b"", # Пустой body, чтобы urllib сделал именно POST
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
     try:
         with urllib.request.urlopen(req) as response:
             res = json.loads(response.read().decode())
-            # Возвращает имя папки снапшота, например: "20231024T123456Z-123456789"
             return res["data"]["name"]
     except Exception as e:
         print(f"    [!] Ошибка вызова API: {e}. Убедитесь, что Prometheus запущен.")
         return None
+
+
 
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)

@@ -17,6 +17,8 @@
     {
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = [
+          pkgs.cargo
+          pkgs.rustc
           pkgs.prometheus
           pkgs.prometheus-pushgateway
           pythonEnv
@@ -48,6 +50,7 @@ EOF
           echo "   start-prom - Запустить Prometheus и Pushgateway"
           echo "   stop-prom  - Остановить все компоненты"
           echo "   run-bench  - Сгенерировать метрики и собрать блоки чанков"
+          echo "   run-entropy - Вычислить энтропию"
           echo "--------------------------------------------------------"
 
           # Используем функции вместо алиасов для избежания ада с кавычками
@@ -69,6 +72,7 @@ EOF
           }
           
           alias run-bench="python collect_prom_blocks.py"
+          alias run-entropy="cargo run --release --manifest-path=$PWD/entropy_analyzer/Cargo.toml --"
         '';
 
       };
